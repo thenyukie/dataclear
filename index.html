@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DataClear — under construction</title>
+<meta name="description" content="DataClear — converting privacy regulations into deterministic, explainable decision trees. Interactive demo under construction.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦺</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════
+   DataClear placeholder — FinDash "Data Terminal B2" tokens
+   (identical palette; WCAG-checked pairs carried over)
+   ══════════════════════════════════════════════════════════ */
+:root {
+  --bg: #F6F8FB;
+  --panel: #FFFFFF;
+  --ink: #0F172A;
+  --muted: #5B6B81;
+  --faint: #8B99AC;
+  --bar: #111A2C;
+  --bar-link: #9DAAC0;      /* 7.4:1 on bar */
+  --bar-clock: #94A3B8;     /* 6.8:1 on bar */
+  --blue: #2F6FEB;          /* graphics only */
+  --blue-text: #1D5FD6;     /* 5.74:1 on white */
+  --blue-wash: #EAF1FD;     /* 5.05:1 with blue-text */
+  --blue-light: #93C5FD;
+  --amber: #F59E0B;
+  --green: #15803D;
+  --green-wash: #E9F6EE;
+  --red: #B91C1C;
+  --line: #E4EAF2;
+  --hairline: #EEF2F7;
+  --r-card: 10px;
+  --shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 14px rgba(15,23,42,.05);
+  --font: -apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',system-ui,sans-serif;
+  --mono: 'Fira Code',ui-monospace,'SF Mono',Menlo,monospace;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:var(--font); font-size:13.5px; line-height:1.5;
+  background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;
+  min-height:100vh; display:flex; flex-direction:column;
+}
+
+/* ── command bar (FinDash DNA) ── */
+.topbar {
+  display:flex; align-items:center; gap:26px;
+  background:var(--bar); color:#DBE4F0;
+  padding:0 22px; height:44px; position:sticky; top:0; z-index:50;
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 1px 3px rgba(15,23,42,.18);
+}
+.topbar .logo {
+  font-family:var(--mono); font-weight:600; font-size:12.5px;
+  color:var(--blue-light); letter-spacing:.2px;
+}
+.topbar-nav { display:flex; align-items:center; gap:4px; height:100%; }
+.topbar-nav a {
+  color:var(--bar-link); text-decoration:none; font-size:12.5px; font-weight:500;
+  letter-spacing:.6px; padding:0 10px; height:100%;
+  display:inline-flex; align-items:center; position:relative; transition:color .15s;
+  text-transform:uppercase;
+}
+.topbar-nav a:hover { color:#E7EDF5; }
+.topbar-nav a.active { color:#fff; }
+.topbar-nav a.active::after {
+  content:""; position:absolute; left:8px; right:8px; bottom:0; height:2px;
+  background:var(--amber); border-radius:2px 2px 0 0;
+}
+.topbar .clock {
+  margin-left:auto; font-family:var(--mono); font-size:11px;
+  color:var(--bar-clock); letter-spacing:.3px; white-space:nowrap;
+}
+@media (max-width:560px){ .topbar { gap:12px; padding:0 14px; } .topbar .clock { display:none; } }
+
+/* ── main ── */
+.main { flex:1; width:100%; max-width:1240px; margin:0 auto; padding:34px 22px 24px; }
+.hero { text-align:center; margin-bottom:22px; }
+.hero h1 { font-size:22px; font-weight:600; letter-spacing:-.4px; }
+.hero .sub { color:var(--muted); font-size:13px; margin-top:4px; }
+.hero .sub b { color:var(--blue-text); font-weight:600; }
+
+/* ── terminal card ── */
+.terminal-wrap { max-width:760px; margin:0 auto; }
+.card {
+  background:var(--panel); border:1px solid var(--line);
+  border-radius:var(--r-card); padding:16px 18px; box-shadow:var(--shadow);
+}
+.card h2 {
+  font-size:10.5px; letter-spacing:1.3px; text-transform:uppercase;
+  color:var(--muted); font-weight:600; margin-bottom:12px;
+}
+.card-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px; flex-wrap:wrap; }
+.card-head h2 { margin-bottom:0; }
+.badge {
+  font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.8px;
+  color:#92400E; background:#FEF3C7; border:1px solid #FDE68A;
+  padding:2px 8px; border-radius:999px; white-space:nowrap;
+}
+pre.ascii {
+  font-family:var(--mono); font-size:13px; line-height:1.55;
+  overflow-x:auto; padding:14px 4px 4px; color:var(--ink);
+}
+pre.ascii .cmt { color:var(--faint); }
+pre.ascii .k { color:var(--blue-text); }
+pre.ascii .ok { color:var(--green); }
+pre.ascii .warn { color:#B45309; }
+.cursor { display:inline-block; width:8px; height:15px; background:var(--ink);
+  vertical-align:-2px; animation:blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+
+/* ── privacy note ── */
+.note { max-width:760px; margin:14px auto 0; color:var(--muted); font-size:12.5px; text-align:center; }
+.note .k { color:var(--green); font-weight:600; }
+
+footer {
+  margin-top:auto; padding:14px 22px 20px; text-align:center;
+  font-family:var(--mono); font-size:10.5px; color:var(--faint); letter-spacing:.4px;
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">DATACLEAR://</span>
+  <nav class="topbar-nav">
+    <a href="#" class="active">Home</a>
+  </nav>
+  <span class="clock" id="clock">SYNC --:--:-- UTC</span>
+</div>
+
+<div class="main">
+  <div class="hero">
+    <h1>DataClear</h1>
+    <div class="sub">converting privacy regulations into <b>deterministic, explainable decision trees</b> — demo under construction</div>
+  </div>
+
+  <div class="terminal-wrap">
+    <div class="card">
+      <div class="card-head">
+        <h2>Build terminal</h2>
+        <span class="badge">🦺 UNDER CONSTRUCTION</span>
+      </div>
+      <pre class="ascii"><span class="cmt"># dataclear — compliance engine</span>
+<span class="k">$</span> ./dataclear --init
+<span class="ok">✓</span> loaded rules: GDPR, CCPA/CPRA
+<span class="ok">✓</span> verdict style: cited-or-silent
+<span class="warn">▲</span> planting decision trees… <span class="cmt">(do not water the lawyers)</span>
+
+         🌱
+        ▲▲▲        <span class="cmt">Art. 6 — lawful basis?</span>
+       ▲▲▲▲▲       <span class="cmt">→ verdict pending…</span>
+      ▲▲▲▲▲▲▲
+
+[<span class="ok">██████████</span>░░░░░░░░░░]  47%  ·  ETA: when the trees stop branching
+
+<span class="cmt"># note: the cones are load-bearing. 🚧</span>
+<span class="k">$</span> <span class="cursor"></span></pre>
+    </div>
+  </div>
+
+  <p class="note">
+    This placeholder ships <span class="k">zero cookies, zero trackers, zero data collection</span> —
+    fitting, for a privacy project. The interactive compliance demo is being wired up.
+  </p>
+</div>
+
+<footer>DATACLEAR:// placeholder v0.1 · built 2026-09-20 · no personal data was processed in the making of this page</footer>
+
+<script>
+(function () {
+  var el = document.getElementById('clock');
+  function tick() {
+    var d = new Date();
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    el.textContent = 'SYNC ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + ' UTC';
+  }
+  tick(); setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
