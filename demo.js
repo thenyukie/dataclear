@@ -1,7 +1,11 @@
-/* DataClear demo engine — chat renderer, workspace tabs, stage progression */
+/* DataClear demo engine v0.3 — graph walker + dynamic stepper.
+   Walks FLOW.nodes via chip goto. Stepper: pinned START/FINISH caps,
+   intermediate pills fill in as visited. Alt trace rows render muted. */
 (function () {
 "use strict";
-const state = { stage: -1, revealed: 0, timers: [], busy: false };
+const PATH = FLOW.path;
+const NODES = FLOW.nodes;
+const state = { cur: null, visited: [], revealed: 0, timers: [], busy: false };
 const CHAT = document.getElementById("chat");
 const TYPING = document.getElementById("typing");
 const CHIPS = document.getElementById("chips");
@@ -17,27 +21,44 @@ function clearTimers(){ state.timers.forEach(clearTimeout); state.timers=[]; }
 function initials(n){ return n.split(/\s+/).map(w=>w[0]).join("").replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase(); }
 function scrollChat(){ CHAT.scrollTop = CHAT.scrollHeight; }
 
-/* ── stepper ── */
+/* ── dynamic stepper: START cap · pills fill as visited · FINISH cap ── */
 function renderStepper(){
   const wrap = document.getElementById("stepper"); wrap.innerHTML = "";
-  STAGES.forEach((s,i)=>{
+  const caps = [["START","cap start"],["FINISH","cap finish"]];
+  // START cap
+  const s=document.createElement("span"); s.className="step-cap start"; s.textContent="START"; wrap.appendChild(s);
+  // intermediate slots (as many as PATH nodes, all unfilled initially)
+  PATH.forEach((id,i)=>{
     if(i){ const c=document.createElement("span"); c.className="step-link"; wrap.appendChild(c); }
     const p=document.createElement("button");
-    p.className="step"; p.type="button"; p.title=s.title; p.textContent=s.n;
-    p.setAttribute("aria-label", "Stage "+s.n+": "+s.title);
+    p.className="step unfilled"; p.type="button"; p.dataset.node=id;
+    p.setAttribute("aria-label", NODES[id].title);
     wrap.appendChild(p);
   });
+  // FINISH cap
+  const f=document.createElement("span"); f.className="step-cap finish"; f.textContent="FINISH"; wrap.appendChild(f);
 }
 function paintStepper(){
-  document.querySelectorAll("#stepper .step").forEach((p,i)=>{
-    p.classList.toggle("done", i < state.stage);
-    p.classList.toggle("active", i === state.stage);
+  const idx = PATH.indexOf(state.cur);
+  document.querySelectorAll("#stepper .step").forEach((p)=>{
+    const nid = p.dataset.node;
+    const vi = state.visited.indexOf(nid);
+    const n = NODES[nid];
+    p.classList.remove("unfilled","done","active");
+    if(vi !== -1){
+      p.classList.add(vi === state.visited.length-1 && nid === state.cur ? "active" : "done");
+      p.textContent = PATH.indexOf(nid)+1;
+      p.title = n.title;
+    } else {
+      p.textContent = "?";
+      p.title = "Not yet reached";
+    }
   });
-}
-function paintStatus(){
-  const s = STAGES[state.stage];
-  const m = {intake:"INTAKE", log:"CLOSING"}[s.id] || "IN PROGRESS";
-  STATUS.textContent = "STAGE " + s.n + "/14 · " + m;
+  // status pill
+  const n = NODES[state.cur];
+  const num = PATH.indexOf(state.cur)+1;
+  const m = state.cur==="intake" ? "INTAKE" : state.cur==="log" ? "CLOSING" : n.actor.toUpperCase();
+  STATUS.textContent = "STEP " + num + "/" + PATH.length + " · " + n.title.toUpperCase() + " · " + m;
 }
 
 /* ── chat ── */
@@ -50,11 +71,12 @@ function addBubble(m){
   const av=document.createElement("div"); av.className="avatar "+m.who;
   av.textContent = m.who==="bot" ? "DC" : (m.name?initials(m.name):"?");
   const body=document.createElement("div"); body.className="bubble";
-  body.innerHTML = '<div class="who">'+esc(m.who==="bot"?"DataClear":(m.name||""))+'</div><div class="text">'+esc(m.text)+'</div>';
+  const who = m.who==="bot" ? (m.role ? "DataClear · "+m.role : "DataClear") : (m.name||"");
+  body.innerHTML = '<div class="who">'+esc(who)+'</div><div class="text">'+esc(m.text)+'</div>';
   row.appendChild(av); row.appendChild(body); CHAT.appendChild(row); scrollChat();
 }
 function addFallback(){
-  addBubble({who:"bot", text:"This demo runs on a scripted path — pick one of the suggested replies below to keep the journey moving."});
+  addBubble({who:"bot", text:"This run follows a scripted path — tap a suggested reply below to keep moving."});
 }
 function showTyping(b){ TYPING.classList.toggle("show", !!b); if(b) scrollChat(); }
 
@@ -65,16 +87,18 @@ function fillTab(kind, items){
   (items||[]).forEach(it=>{
     const li=document.createElement("li"); li.className="tabitem"; li.style.display="none";
     if(kind==="trace"){
-      li.innerHTML='<div class="t-head"><span class="t-dot"></span><span class="t-label">'+esc(it.label)+'</span></div>'
+      const alt = !!it.alt;
+      if(alt) li.classList.add("altrow");
+      li.innerHTML='<div class="t-head"><span class="t-dot'+(alt?' altdot':'')+'"></span><span class="t-label">'+esc(it.label)+'</span></div>'
         +'<div class="t-detail">'+esc(it.detail)+'</div>'
-        +'<div class="t-cite" title="'+esc(it.cite)+'">⌁ '+esc(it.cite)+'</div>';
+        +(alt ? '' : '<div class="t-cite" title="'+esc(it.cite)+'">⌁ '+esc(it.cite)+'</div>');
     } else if(kind==="artifacts"){
       li.innerHTML='<div class="a-head"><span class="a-icon">'+it.icon+'</span><span class="a-title">'+esc(it.title)+'</span><span class="a-status">'+esc(it.status)+'</span></div>'
         +'<ul class="a-lines">'+it.lines.map(l=>'<li>'+esc(l)+'</li>').join("")+'</ul>';
     } else if(kind==="people"){
       li.innerHTML='<div class="p-av">'+initials(it.name)+'</div><div class="p-body"><div class="p-name">'+esc(it.name)+' <span class="p-role">'+esc(it.role)+'</span></div><div class="p-action">'+esc(it.action)+'</div></div>';
     } else {
-      li.innerHTML='<div class="s-row"><span class="s-name">'+esc(it.name)+'</span><span class="s-action">'+esc(it.action)+'</span><span class="s-status '+(/✓|SEALED|APPLIED/.test(it.status)?"ok":"")+'">'+esc(it.status)+'</span></div>';
+      li.innerHTML='<div class="s-row"><span class="s-name">'+esc(it.name)+'</span><span class="s-action">'+esc(it.action)+'</span><span class="s-status '+(/✓|SEALED|APPLIED|OK|RECORDED/.test(it.status)?"ok":"")+'">'+esc(it.status)+'</span></div>';
     }
     list.appendChild(li); TABS[kind].push(li);
   });
@@ -94,26 +118,26 @@ function revealAllTabs(startDelay){
   ["trace","artifacts","people","systems"].forEach(kind=>{
     TABS[kind].forEach(()=>{ revealItem(kind, d); d += 160; });
   });
+  return d;
 }
 
 /* ── stage flow ── */
 function renderChips(){
   CHIPS.innerHTML="";
-  STAGES[state.stage].chips.forEach(c=>{
-    const b=document.createElement("button"); b.type="button"; b.className="chip"; b.textContent=c;
+  NODES[state.cur].chips.forEach(c=>{
+    const b=document.createElement("button"); b.type="button"; b.className="chip"; b.textContent=c.text;
     b.addEventListener("click", ()=>pick(c));
     CHIPS.appendChild(b);
   });
 }
 function showChips(){ renderChips(); CHIPS.classList.add("show"); }
 function finishStage(){
-  revealAllTabs(120);
-  const total = TABS.trace.length + TABS.artifacts.length + TABS.people.length + TABS.systems.length;
-  later(showChips, 120 + total*160 + 250);
+  const lastDelay = revealAllTabs(120);
+  later(showChips, lastDelay + 250);
   state.busy = false;
 }
 function revealNext(){
-  const msgs = STAGES[state.stage].chat;
+  const msgs = NODES[state.cur].chat;
   if(state.revealed >= msgs.length){ finishStage(); return; }
   const m = msgs[state.revealed];
   if(m.who==="bot"){
@@ -123,51 +147,56 @@ function revealNext(){
     later(()=>{ addBubble(m); state.revealed++; revealNext(); }, 350);
   }
 }
-function enterStage(i, instant){
+function enterNode(id, instant){
   clearTimers();
-  state.stage = i; state.revealed = 0; state.busy = true;
+  state.cur = id; state.revealed = 0; state.busy = true;
   CHIPS.classList.remove("show"); CHIPS.innerHTML="";
-  const s = STAGES[i];
-  ["trace","artifacts","people","systems"].forEach(k=>fillTab(k, s[k]));
-  paintStepper(); paintStatus();
-  document.getElementById("stage-title").textContent = s.n + " · " + s.title;
-  addDivider("— Stage " + s.n + " · " + s.title + " —");
+  const n = NODES[id];
+  if(state.visited[state.visited.length-1] !== id) state.visited.push(id);
+  ["trace","artifacts","people","systems"].forEach(k=>fillTab(k, n[k]));
+  paintStepper();
+  document.getElementById("stage-title").textContent = (PATH.indexOf(id)+1) + " · " + n.title + " — " + n.actor;
+  addDivider("— Step " + (PATH.indexOf(id)+1) + " · " + n.title + " · " + n.actor + " —");
   if(instant){
-    s.chat.forEach(addBubble);
-    state.revealed = s.chat.length;
-    ["trace","artifacts","people","systems"].forEach(k=>TABS[k].forEach(li=>li.style.display=""));
-    TABS.trace=[]; TABS.artifacts=[]; TABS.people=[]; TABS.systems=[];
+    n.chat.forEach(addBubble);
+    state.revealed = n.chat.length;
+    ["trace","artifacts","people","systems"].forEach(k=>{
+      TABS[k].forEach(li=>li.style.display="");
+      TABS[k] = [];
+    });
     showChips(); state.busy=false;
   } else {
     later(revealNext, 450);
   }
 }
-function pick(chipText){
+function pick(chip){
   if(state.busy) return;
-  addBubble({who:"user", name:"Priya Sharma", text: chipText});
+  addBubble({who:"user", name:"Priya (Requester)", text: chip.text});
   CHIPS.classList.remove("show");
-  if(state.stage === STAGES.length-1){ later(restart, 800); return; }
+  if(chip.goto === "__restart"){ later(restart, 800); return; }
   state.busy = true;
-  later(()=>enterStage(state.stage+1), 900);
+  later(()=>enterNode(chip.goto), 900);
 }
 function submitTyped(){
   const t = INPUT.value.trim(); if(!t || state.busy) return;
   INPUT.value = "";
   const norm = t.toLowerCase();
-  const ok = STAGES[state.stage].expected.some(w => norm.indexOf(w) !== -1);
+  const n = NODES[state.cur];
+  const ok = (n.expected||[]).some(w => norm.indexOf(w) !== -1);
   if(ok){
-    const chips = STAGES[state.stage].chips;
-    pick(chips[chips.length-1]);
+    const chip = n.chips[n.chips.length-1];
+    pick(chip);
   } else addFallback();
 }
 function jump(delta){
-  const t = state.stage + delta;
-  if(t < 0 || t > STAGES.length-1 || state.busy) return;
-  enterStage(t, true);
+  const i = PATH.indexOf(state.cur) + delta;
+  if(i < 0 || i > PATH.length-1 || state.busy) return;
+  enterNode(PATH[i], true);
 }
 function restart(){
   clearTimers(); CHAT.innerHTML=""; state.busy=false;
-  enterStage(0);
+  state.visited = [];
+  enterNode(PATH[0]);
 }
 
 /* ── wiring ── */

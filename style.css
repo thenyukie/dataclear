@@ -183,3 +183,22 @@ body {
   .main { grid-template-columns:1fr; }
   .pane.chat-pane { min-height:70vh; }
 }
+
+/* ════════════ v0.3 additions: dynamic stepper + alt rows ════════════ */
+.step-cap {
+  flex:none; font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:1px;
+  color:var(--bar-clock); background:var(--bar); border-radius:999px; padding:3px 10px;
+}
+.step-cap.finish { color:var(--blue-light); }
+.step.unfilled { opacity:.45; background:transparent; border-style:dashed; color:var(--faint); }
+.step.done { animation:fillin .35s ease; }
+@keyframes fillin { from { transform:scale(.7); opacity:.2; } to { transform:scale(1); opacity:1; } }
+.tabitem.altrow { border-style:dashed; background:transparent; opacity:.75; }
+.tabitem.altrow .t-label::after {
+  content:"ALT"; font-family:var(--mono); font-size:8px; font-weight:600; letter-spacing:1px;
+  color:#92400E; background:#FEF3C7; border:1px solid #FDE68A; border-radius:4px;
+  padding:1px 5px; margin-left:8px; vertical-align:1px;
+}
+.t-dot.altdot { background:var(--amber); }
+.pill.live { animation:pulse 2.4s infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.6; } }

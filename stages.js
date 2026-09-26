@@ -1,241 +1,265 @@
-/* DataClear demo — stage data. 14 linear stages, one scripted path. */
-const STAGES = [
-{
-  id:"intake", n:1, title:"Intake",
-  chips:["Submit for evaluation"],
+/* DataClear demo v0.3 — branch-aware node graph. Longest path (high-risk DPIA + UK/EU TIA).
+   Engine walks nodes via chip goto; FLOW.path is the default linear tour.
+   alt:true trace rows = branches NOT taken (shown for explainability). */
+const FLOW = {
+  path: ["intake","enrich","match","notice","risk","dpia","dpo","transfer","tia","sharing","controls","attest","apply","log"],
+  nodes: {
+intake: {
+  title:"Intake", actor:"Requester",
+  chips:[{text:"Submit for evaluation", goto:"enrich"}],
   expected:["submit","evaluation","send","go","yes"],
   chat:[
-    {who:"user", name:"Priya (HR Ops)", text:"We're planning a global employee benefits portal. It would hold employee IDs, salary bands, dependents and health-plan enrollment choices, administered by a US vendor."},
-    {who:"bot", text:"Thanks Priya. I've captured your use case and structured it for evaluation. Nothing is decided yet — I'll check it stage by stage, and every verdict will point to the rule that produced it."},
-    {who:"bot", text:"Summary → purpose: benefits administration · data: employee ID, salary band, dependents, health enrollment · systems: new portal + external vendor (US) · scope: all employees. Ready to submit?"}
+    {who:"user", name:"Priya (HR Ops)", text:"Hi — we need a new employee benefits portal for our UK entity. Health-plan enrollment, salary bands, dependents; administered by our existing US vendor Northgate."},
+    {who:"bot", text:"Thanks Priya. I've structured your submission into case UC-2026-0155. Nothing is decided yet — I'll evaluate stage by stage, and every verdict will cite the encoded rule that produced it."},
+    {who:"bot", text:"Summary → purpose: benefits administration · data: employee ID, salary band, dependents, health enrollment · vendor: Northgate (US) · scope: ~1,180 UK employees. Submitting for evaluation."}
   ],
   trace:[
-    {label:"Parse submission", detail:"Free text → structured use case (9 fields)", cite:"intake.schema.v2"},
-    {label:"Classify purpose", detail:"purpose = BENEFITS_ADMIN", cite:"taxonomy.purpose.07"},
+    {label:"Parse submission", detail:"free text → structured use case (8 fields)", cite:"intake.schema.v2"},
+    {label:"Classify purpose", detail:"purpose = BENEFITS_ADMIN · entity = DCBA Ltd (UK)", cite:"taxonomy.purpose.07"},
     {label:"Extract data categories", detail:"[employee_id, salary_band, dependents, health_enrollment]", cite:"taxonomy.data.03/11"},
     {label:"Detect cross-border element", detail:"vendor region = US → transfer flag SET", cite:"transfer.detect.01"}
   ],
-  artifacts:[{icon:"📋", title:"Intake form UC-2026-0148", status:"DRAFT", lines:["Requester: Priya Sharma (HR Operations)","Purpose: benefits administration","Data: employee ID · salary band · dependents · health enrollment","Vendor: Northgate Benefits Inc. (US)","Employees in scope: ~4,100 (all entities)"]}],
-  people:[{name:"Priya Sharma", role:"Business requester · HR Ops", action:"submitted the use case"}],
-  systems:[{name:"Intake API", action:"structured submission", status:"OK"}]
+  artifacts:[{icon:"📋", title:"Intake form UC-2026-0155", status:"SUBMITTED", lines:["Requester: Priya (HR Operations)","Purpose: benefits administration (UK)","Data: employee ID · salary band · dependents · health enrollment","Vendor: Northgate Benefits Inc. (US)","Employees in scope: ~1,180 (DCBA Ltd, UK)"]}],
+  people:[{name:"Priya", role:"Requester · HR Ops", action:"submitted the use case"}],
+  systems:[{name:"Intake API", action:"POST /cases (UC-2026-0155)", status:"OK"}]
 },
-{
-  id:"enrichment", n:2, title:"Enrichment",
-  chips:["Confirm enriched data"],
+enrich: {
+  title:"Enrichment", actor:"AI agent",
+  chips:[{text:"Confirm enriched data", goto:"match"}],
   expected:["confirm","enrich","ok","yes","looks good"],
   chat:[
-    {who:"bot", text:"Enriching your case from golden sources — I'll pull authoritative data rather than ask you to re-type it."},
-    {who:"bot", text:"Found: your entity (DCBA Holdings → 6 subsidiaries), HRIS employee count 4,118, vendor Northgate already in Supplier Registry with DPA status: SIGNED (2025)."}
+    {who:"bot", text:"Enriching your case from golden sources — I pull authoritative records rather than ask you to re-type them."},
+    {who:"bot", text:"Found: DCBA Ltd (UK) · 1,180 employees in HRIS · Northgate in Supplier Registry with DPA signed 2025-03-11 and EEA SCCs on file. A closed case UC-2025-0061 (EEA benefits portal, same vendor) looks relevant — flagging it for matching."}
   ],
   trace:[
-    {label:"Entity lookup", detail:"DCBA Holdings Plc + 6 subsidiaries resolved", cite:"golden.entity-register"},
-    {label:"Population check", detail:"HRIS → 4,118 active employees across 7 countries", cite:"golden.hris"},
-    {label:"Vendor registry", detail:"Northgate Benefits Inc. · DPA signed 2025-03-11 · no SCCs on file", cite:"golden.supplier-registry"},
-    {label:"Gap flagged", detail:"No transfer mechanism for US vendor → carried to transfer stage", cite:"gap.transfer-mechanism"}
+    {label:"Entity lookup", detail:"DCBA Holdings Plc → DCBA Ltd (UK) resolved", cite:"golden.entity-register"},
+    {label:"Population check", detail:"HRIS → 1,180 active UK employees", cite:"golden.hris"},
+    {label:"Vendor registry", detail:"Northgate Benefits Inc. · DPA signed 2025-03-11 · EEA SCCs on file", cite:"golden.supplier-registry"},
+    {label:"Prior case signalled", detail:"UC-2025-0061 (EEA benefits portal, closed) → candidate for matching", cite:"case.signal.v1"}
   ],
-  artifacts:[{icon:"🔎", title:"Enrichment report", status:"COMPLETE", lines:["Entities: 7 (HQ + 6 subsidiaries)","Employees: 4,118 (golden HRIS, synced 09-24 06:00 UTC)","Vendor: Northgate Benefits Inc. — DPA ✓ · SCCs ✗","Open gaps: 1 (transfer mechanism)"]}],
-  people:[{name:"System", role:"Automated enrichment", action:"queried 3 golden sources"}],
+  artifacts:[{icon:"🔎", title:"Enrichment report", status:"COMPLETE", lines:["Entity: DCBA Ltd (UK) under DCBA Holdings Plc","Employees: 1,180 (golden HRIS, synced 06:00 UTC)","Vendor: Northgate — DPA ✓ · EEA SCCs ✓ · UK addendum ✗","Related closed case: UC-2025-0061 (EEA, 2025)"]}],
+  people:[{name:"DataClear", role:"AI agent", action:"queried 3 golden sources + case DB"}],
   systems:[
     {name:"Entity Register", action:"GET /entities?q=DCBA", status:"OK"},
-    {name:"HRIS", action:"GET /headcount?active=true", status:"OK"},
+    {name:"HRIS", action:"GET /headcount?entity=UK", status:"OK"},
     {name:"Supplier Registry", action:"GET /vendors/northgate", status:"OK"}
   ]
 },
-{
-  id:"dedup", n:3, title:"Dedup / case matching",
-  chips:["Proceed as new case"],
-  expected:["proceed","new case","continue","yes","ok"],
+match: {
+  title:"Case matching", actor:"AI agent",
+  chips:[{text:"Proceed as new linked case", goto:"notice"}],
+  expected:["proceed","new case","continue","yes","ok","linked"],
   chat:[
-    {who:"bot", text:"Checking 2,317 existing cases for overlap before creating anything new."},
-    {who:"bot", text:"One related case: UC-2024-0090 (US payroll processing, 2024). 42% field overlap — same vendor, different purpose and data set. Recommendation: new case, linked to UC-2024-0090 for vendor context."}
+    {who:"bot", text:"Scanning 2,891 prior cases for overlap — not a yes/no match, but degree of similarity across vendor, data categories and purpose."},
+    {who:"bot", text:"Best candidate: UC-2025-0061 (EEA benefits portal, closed 2025-09). Overlap 82% — same vendor, same data categories, different jurisdiction (EEA → UK). Rule M-04: ≥75% overlap = candidate; jurisdiction differs = no merge. Outcome: new case created and linked, inheriting the prior case's vendor profile, DPA and TIA as reference material."}
   ],
   trace:[
-    {label:"Similarity scan", detail:"2,317 cases · embedding + rule match", cite:"dedup.engine.v3"},
-    {label:"Candidate found", detail:"UC-2024-0090 · overlap 42% (threshold 75% for merge)", cite:"dedup.threshold.75"},
-    {label:"Decision", detail:"NO_MERGE → new case UC-2026-0148, link to UC-2024-0090", cite:"dedup.rule.link-not-merge"}
+    {label:"Similarity scan", detail:"2,891 cases · embedding + rule filter", cite:"match.engine.v3"},
+    {label:"Candidate found", detail:"UC-2025-0061 · overlap 82% (threshold ≥75% = candidate)", cite:"match.threshold.75"},
+    {label:"Verdict", detail:"OVERLAP · NO_MERGE (jurisdiction delta UK ≠ EEA) → new case, linked", cite:"match.rule.M-04"},
+    {label:"Inherited assets", detail:"vendor risk profile · DPA · EEA TIA (as reference)", cite:"match.inheritance.v1"},
+    {label:"ALT · 100% match", detail:"identical prior case → reuse entire prior approval, route straight to attestation + controls for the new submitter", alt:true}
   ],
-  artifacts:[{icon:"🧬", title:"Match report", status:"NO MERGE", lines:["Scanned: 2,317 closed/open cases","UC-2024-0090 — payroll (US) · overlap 42%","Reason: same vendor, different purpose + data categories","Action: cross-link for vendor history"]}],
-  people:[{name:"System", role:"Automated dedup engine", action:"matched & linked cases"}],
-  systems:[{name:"Case Store", action:"similarity scan (2,317)", status:"OK"}]
+  artifacts:[{icon:"🧬", title:"Match report UC-2026-0155", status:"82% OVERLAP", lines:["Scanned: 2,891 closed/open cases","Matched: UC-2025-0061 (EEA benefits portal) · overlap 82%","Same vendor, same data categories, different jurisdiction","Action: new case UC-2026-0155, linked to prior · inherits vendor profile, DPA, TIA reference"]}],
+  people:[{name:"DataClear", role:"AI agent", action:"matched & linked prior case, inherited assets"}],
+  systems:[
+    {name:"Case Store", action:"similarity scan (2,891)", status:"OK"},
+    {name:"Linkage API", action:"LINK UC-2026-0155 ↔ UC-2025-0061", status:"OK"}
+  ]
 },
-{
-  id:"ropa", n:4, title:"RoPA creation",
-  chips:["Continue"],
-  expected:["continue","ok","next","yes"],
+notice: {
+  title:"Privacy notice check", actor:"AI agent",
+  chips:[{text:"Accept validated notice", goto:"risk"}],
+  expected:["accept","validated","notice","yes","ok"],
   chat:[
-    {who:"bot", text:"Record of Processing (Art. 30) drafted from your case + enrichment. I pre-filled processing purposes, categories, recipients and transfers — you'd normally review this with your privacy team."},
-    {who:"bot", text:"RoPA entry R-0812 created in DRAFT and attached to the case."}
+    {who:"bot", text:"Checking the UK employee privacy notice (v12.1, updated 2026-03) against what this use case actually does."},
+    {who:"bot", text:"Result: health-plan enrollment, salary bands, dependents and UK→US transfers for benefits administration are all already enumerated. No gap — the notice is validated as correct, no remediation needed. (Had a gap existed, a remediation sub-flow would draft, assure and publish an amendment.)"}
   ],
   trace:[
-    {label:"Controller/processor roles", detail:"DCBA = controller · Northgate = processor", cite:"gdpr.art.30"},
-    {label:"Draft entry", detail:"R-0812 · purposes, categories, recipients, retention pre-filled", cite:"ropa.template.v4"},
-    {label:"Retention proposal", detail:"24 months post-employment (policy RET-EMP-02)", cite:"policy.retention"}
+    {label:"Notice coverage check", detail:"notice v12.1 (UK) vs use-case data map", cite:"notice.check.v2"},
+    {label:"Categories covered", detail:"health enrollment · salary band · dependents — all enumerated §3.2–3.4", cite:"gdpr.art.13.1.d"},
+    {label:"Transfers covered", detail:"UK→US described with mechanism reference (§7.1)", cite:"gdpr.art.13.1.f"},
+    {label:"Outcome", detail:"NO GAP → notice validated as correct", cite:"notice.rule.N-01"},
+    {label:"ALT · gap found", detail:"→ AI drafts amendment → repository assurance check → Ops reviewer publishes (remediation loop 4a–4c)", alt:true}
   ],
-  artifacts:[{icon:"🗂️", title:"RoPA entry R-0812", status:"DRAFT", lines:["Controller: DCBA Holdings Plc · Processor: Northgate Benefits Inc.","Purpose: benefits administration","Categories: identity · employment · salary band · dependents · health","Transfers: EEA → US (vendor)","Retention: 24 months post-employment"]}],
-  people:[{name:"System", role:"Automated RoPA builder", action:"drafted Art. 30 record"}],
-  systems:[{name:"RoPA Register", action:"POST /ropa (draft)", status:"OK"}]
+  artifacts:[{icon:"✅", title:"Notice validation UC-2026-0155", status:"PASS · NO GAP", lines:["Notice reviewed: Employee Privacy Notice v12.1 (UK)","All data categories covered ✓","UK→US transfers referenced with mechanism ✓","No amendment required · no remediation loop"]}],
+  people:[{name:"DataClear", role:"AI agent", action:"validated notice coverage"}],
+  systems:[{name:"Notice Library", action:"GET /notices/employee/UK/v12.1", status:"OK"}]
 },
-{
-  id:"notice", n:5, title:"Privacy notice check",
-  chips:["Approve notice update"],
-  expected:["approve","update","notice","yes","ok"],
+risk: {
+  title:"Risk scoring", actor:"AI agent",
+  chips:[{text:"Accept HIGH risk routing", goto:"dpia"}],
+  expected:["accept","risk","ok","yes","continue","high"],
   chat:[
-    {who:"bot", text:"Checking the employee privacy notice against what this use case actually does. Two gaps found: health-plan enrollment data is not listed, and international transfers are described generically."},
-    {who:"bot", text:"I've drafted the amendments. Notice stays in draft until the case completes — nothing is published without sign-off."}
+    {who:"bot", text:"Scoring risk to set assessment depth. Drivers: health data (special category), all-employee scale, external processor, cross-border transfer."},
+    {who:"bot", text:"Score: 16/25 → HIGH. Rule R-11: ≥14 routes to a full data privacy impact analysis (DPIA) with DPO review. A score under 14 would route to the lighter PIA path instead."}
   ],
   trace:[
-    {label:"Notice coverage check", detail:"notice v9.2 vs use-case data map", cite:"notice.check.v2"},
-    {label:"Gap 1", detail:"health enrollment not enumerated → add §3.4", cite:"gdpr.art.13(1)(d)"},
-    {label:"Gap 2", detail:"US transfer described generically → specify recipient + mechanism", cite:"gdpr.art.13(1)(f)"},
-    {label:"Draft amendment", detail:"notice v9.3-draft prepared", cite:"notice.draft.v1"}
+    {label:"Factor · special category", detail:"health enrollment → +6", cite:"risk.factor.special"},
+    {label:"Factor · scale", detail:"all 1,180 UK employees → +4", cite:"risk.factor.scale"},
+    {label:"Factor · external processor", detail:"Northgate (US) → +3", cite:"risk.factor.processor"},
+    {label:"Factor · transfer", detail:"UK→US → +3", cite:"risk.factor.transfer"},
+    {label:"Aggregate", detail:"16/25 → HIGH → DPIA route (R-11: ≥14)", cite:"risk.matrix.v5"},
+    {label:"ALT · score <14", detail:"→ light-touch PIA path, no DPO review required", alt:true}
   ],
-  artifacts:[{icon:"📄", title:"Employee notice v9.3 (draft)", status:"2 GAPS FIXED", lines:["+ §3.4 health-plan enrollment data (categories)","+ §7.2 transfer: Northgate Benefits Inc. (US), SCCs + TIA reference","Publish gate: requires case completion + DPO view"]}],
-  people:[{name:"System", role:"Automated notice checker", action:"diffed notice vs data map"}],
-  systems:[{name:"Notice Library", action:"GET /notices/employee/v9.2", status:"OK"}]
-},
-{
-  id:"risk", n:6, title:"Risk scoring",
-  chips:["Accept risk outcome"],
-  expected:["accept","risk","ok","yes","continue"],
-  chat:[
-    {who:"bot", text:"Scoring risk to decide assessment depth. Drivers: health data (special category) + all employees + external processor + transfer. Score: 16/25 → HIGH."},
-    {who:"bot", text:"HIGH routes this to a full data privacy impact analysis rather than a light-touch PIA. That's a rule outcome, not a judgment call."}
-  ],
-  trace:[
-    {label:"Factor: special category", detail:"health enrollment → +6", cite:"risk.factor.special"},
-    {label:"Factor: population", detail:"all employees, 7 countries → +4", cite:"risk.factor.scale"},
-    {label:"Factor: external processor", detail:"vendor beyond EEA → +3", cite:"risk.factor.processor"},
-    {label:"Factor: transfer", detail:"EEA→US, no SCCs → +3", cite:"risk.factor.transfer"},
-    {label:"Aggregate", detail:"16/25 → HIGH → full DPIA required", cite:"risk.matrix.v5 · ≥14 ⇒ DPIA"}
-  ],
-  artifacts:[{icon:"🌡️", title:"Risk scorecard UC-2026-0148", status:"HIGH 16/25", lines:["Special category: 6/8","Scale: 4/6","External processor: 3/5","Transfer: 3/6","Threshold ≥14 ⇒ full data privacy impact analysis"]}],
-  people:[{name:"System", role:"Automated risk engine", action:"scored case"}],
+  artifacts:[{icon:"🌡️", title:"Risk scorecard UC-2026-0155", status:"HIGH · 16/25", lines:["Special category: 6/8","Scale: 4/6","External processor: 3/5","Transfer: 3/6","Routing: HIGH → full DPIA with DPO review"]}],
+  people:[{name:"DataClear", role:"AI agent", action:"scored case → HIGH"}],
   systems:[{name:"Risk Engine", action:"evaluate(matrix.v5)", status:"OK"}]
 },
-{
-  id:"pia", n:7, title:"Privacy impact assessment",
-  chips:["Proceed to full analysis"],
-  expected:["proceed","continue","yes","ok","next"],
+dpia: {
+  title:"DPIA preparation", actor:"AI agent",
+  chips:[{text:"Route to DPO review", goto:"dpo"}],
+  expected:["route","dpo","review","yes","ok","continue"],
   chat:[
-    {who:"bot", text:"Running the standard privacy impact assessment — the screening layer. It confirms what the risk score predicted: this case cannot close at PIA level."},
-    {who:"bot", text:"PIA outcome: ESCALATE. Mandatory grounds: special-category data at scale. The full data privacy impact analysis is now required, not optional."}
+    {who:"bot", text:"Score HIGH → full data privacy impact analysis instead of a light-touch PIA. Building it now: necessity, proportionality, mitigations and residual risk — using the inherited UC-2025-0061 DPIA as baseline, adapted UK-first."},
+    {who:"bot", text:"Draft complete. Residual risk after mitigations: LOW-MEDIUM. Routing to Marta (DPO) for review — a human gate the AI cannot pass itself."}
   ],
   trace:[
-    {label:"Screening questions", detail:"8/8 answered from case data (no human input needed)", cite:"pia.screen.v3"},
-    {label:"Mandatory ground met", detail:"special-category data at scale", cite:"pia.escalation.grounds"},
-    {label:"Outcome", detail:"PIA = ESCALATE → DPIA required", cite:"pia.rule.escalate"}
+    {label:"Route decision", detail:"DPIA replaces PIA on HIGH score (R-11 ≥14)", cite:"risk.route.R-11"},
+    {label:"Baseline inheritance", detail:"prior EEA DPIA (UC-2025-0061) adapted for UK jurisdiction", cite:"dpia.baseline.v1"},
+    {label:"Necessity test", detail:"objectives justify processing of health + salary data", cite:"gdpr.art.35"},
+    {label:"Proportionality", detail:"salary band (not full salary) · plan choice (not full record)", cite:"gdpr.art.35.7.b"},
+    {label:"Residual risk", detail:"LOW-MEDIUM after proposed mitigations", cite:"dpia.residual.v1"}
   ],
-  artifacts:[{icon:"📝", title:"PIA screen UC-2026-0148", status:"ESCALATED", lines:["8 screening questions · all rule-answered","Escalation grounds: special category + scale","Next: full DPIA (stage 8)"]}],
-  people:[{name:"System", role:"Automated PIA screen", action:"completed screening"}],
-  systems:[{name:"Assessment Engine", action:"run(pia.screen.v3)", status:"OK"}]
-},
-{
-  id:"dpia", n:8, title:"Data privacy impact analysis",
-  chips:["Request DPO validation"],
-  expected:["dpo","validate","request","approve","yes"],
-  chat:[
-    {who:"bot", text:"Building the full data privacy impact analysis: necessity, proportionality, residual risk and mitigations. This is the deepest assessment in the pipeline."},
-    {who:"bot", text:"Draft complete. Residual risk after mitigations: LOW-MEDIUM. Routed to Marta (DPO) for validation — she appears in the People tab."}
-  ],
-  trace:[
-    {label:"Necessity test", detail:"objectives justify processing", cite:"gdpr.art.35"},
-    {label:"Proportionality", detail:"data minimised: salary band (not full salary), health choice (not full record)", cite:"gdpr.art.35(7)(b)"},
-    {label:"Mitigations proposed", detail:"pseudonymised IDs · field-level access · 24m retention", cite:"control.catalog.11/19/24"},
-    {label:"Residual risk", detail:"LOW-MEDIUM · DPO validation required", cite:"dpia.signoff.policy"}
-  ],
-  artifacts:[{icon:"📊", title:"DPIA UC-2026-0148", status:"AWAITING DPO", lines:["Necessity: justified (no less-intrusive alternative)","Proportionality: salary band, not salary; plan choice, not records","Mitigations: pseudonymisation · RBAC · retention 24m","Residual risk: LOW-MEDIUM"]}],
+  artifacts:[{icon:"📊", title:"DPIA UC-2026-0155 (draft)", status:"AWAITING DPO", lines:["Necessity: justified — no less-intrusive alternative","Proportionality: salary band, not salary · plan choice, not records","Mitigations proposed: pseudonymised IDs · field-level RBAC · 24m retention · AES-256","Residual risk: LOW-MEDIUM","Baseline: inherited from UC-2025-0061 (adapted)"]}],
   people:[
-    {name:"Marta Keller", role:"DPO", action:"assigned for validation"},
-    {name:"Marta Keller", role:"DPO", action:"validated DPIA ✓ — “mitigations adequate, proceed with SCCs”"}
+    {name:"DataClear", role:"AI agent", action:"drafted DPIA on inherited baseline"},
+    {name:"Marta Keller", role:"DPO", action:"assigned for review"}
   ],
-  systems:[{name:"Assessment Engine", action:"compile(dpia.template.v2)", status:"OK"}]
+  systems:[{name:"Assessment Engine", action:"compile(dpia.template.v3)", status:"OK"}]
 },
-{
-  id:"transfer", n:9, title:"Transfer analysis + TIA",
-  chips:["Continue"],
-  expected:["continue","next","ok","yes","tia"],
+dpo: {
+  title:"DPO review & approval", actor:"DPO",
+  chips:[{text:"DPO approves — continue", goto:"transfer"}],
+  expected:["approve","dpo","continue","yes","ok","approved"],
   chat:[
-    {who:"bot", text:"Now the cross-border layer. Enrichment flagged it early: EEA → US, vendor DPA signed but no transfer mechanism on file."},
-    {who:"bot", text:"Rule outcome: SCCs required + a transfer impact assessment before any data leaves the EEA. TIA drafted: vendor cloud region, government-access laws, supplementary encryption."}
+    {who:"bot", text:"DPIA with Marta Keller (DPO) for review — checklist covers necessity, proportionality, mitigations, transfer references and residual risk."},
+    {who:"bot", text:"Marta approved with one condition: dependents' data retention capped at 24 months (down from the proposed 36). Condition recorded as an obligation and passed to controls. (A rejection would loop the DPIA back for revision — supported, not shown in this run.)"}
   ],
   trace:[
-    {label:"Transfer detected", detail:"EEA → US (Northgate)", cite:"transfer.detect.01"},
-    {label:"Mechanism check", detail:"DPA ✓ · SCCs ✗ → GAP", cite:"gdpr.art.46"},
-    {label:"Rule outcome", detail:"SCC execution required + TIA mandatory", cite:"transfer.rule.scc-tia"},
-    {label:"TIA drafted", detail:"supplementary measures: AES-256 at rest, pseudonymised IDs", cite:"tia.template.v3"}
+    {label:"Reviewer", detail:"Marta Keller · DPO · 8-item checklist", cite:"dpo.assign.v1"},
+    {label:"Checklist result", detail:"necessity ✓ proportionality ✓ mitigations ✓ transfer refs ✓ residual ✓ (8/8)", cite:"dpo.checklist.v2"},
+    {label:"Decision", detail:"APPROVED with condition: dependents retention ≤ 24 months", cite:"dpo.rule.approved-with-conditions"},
+    {label:"Condition → obligation", detail:"retention override recorded as control obligation", cite:"dpo.condition.v1"},
+    {label:"ALT · rejection", detail:"→ DPIA returns to AI with comments for revision; resubmission required before proceeding", alt:true}
   ],
-  artifacts:[{icon:"🌍", title:"TIA — EEA→US (Northgate)", status:"DRAFT", lines:["Mechanism: EU SCCs (to be executed)","Local law risk: medium (US CLOUD Act considered)","Supplementary measures: encryption at rest · pseudonymised IDs · access logging"]}],
-  people:[{name:"System", role:"Automated transfer analysis", action:"drafted TIA"}],
-  systems:[{name:"Transfer Rules Engine", action:"evaluate(corridor EEA→US)", status:"OK"}]
+  artifacts:[{icon:"🖊️", title:"DPIA approval record", status:"DPO SIGNED", lines:["Approved by: Marta Keller · DPO","Condition: dependents retention ≤ 24 months","Checklist: 8/8 items passed","Signature timestamp: 2026-09-26T10:22Z"]}],
+  people:[
+    {name:"Marta Keller", role:"DPO", action:"reviewed DPIA (8-item checklist)"},
+    {name:"Marta Keller", role:"DPO", action:"approved with condition ✓"}
+  ],
+  systems:[{name:"Approval Service", action:"PUT /cases/2026-0155/dpia/approve", status:"OK"}]
 },
-{
-  id:"sharing", n:10, title:"Data sharing rules",
-  chips:["Continue"],
-  expected:["continue","next","ok","sharing","yes"],
+transfer: {
+  title:"Transfer rule analysis", actor:"AI agent",
+  chips:[{text:"Confirm TIA required", goto:"tia"}],
+  expected:["confirm","tia","required","yes","ok","continue"],
   chat:[
-    {who:"bot", text:"Sharing rules check — what may move, to whom, under what agreement. Two outbound flows: portal→vendor (processor, DPA+SCCs) and vendor→insurers (independent controllers, separate legal basis needed)."},
-    {who:"bot", text:"The vendor→insurer flow is outside this case's current authority. I've flagged it as a condition: it requires its own intake. I don't approve it silently."}
+    {who:"bot", text:"Now the cross-border layer. This case moves UK employee data to Northgate's US hosting — a UK/EU transfer, so a transfer impact assessment is mandatory."},
+    {who:"bot", text:"Corridor found: UK→US. DPA ✓, EEA SCCs on file, but the UK International Data Addendum isn't executed yet — a gap. Rule T-02: UK/EU corridor → TIA required. (No UK/EU transfer would have bypassed this entirely.)"}
   ],
   trace:[
-    {label:"Flow 1: portal → Northgate", detail:"processor relationship · DPA + SCCs (pending execution)", cite:"share.rule.processor"},
-    {label:"Flow 2: Northgate → insurers", detail:"independent controllers → separate basis required", cite:"share.rule.independent"},
-    {label:"Boundary set", detail:"Flow 2 out of scope here → flagged, not approved", cite:"share.rule.no-silent-approval"}
+    {label:"Transfer detected", detail:"UK→US (Northgate hosting, us-east-1)", cite:"transfer.detect.01"},
+    {label:"Mechanism check", detail:"DPA ✓ · EEA SCCs ✓ · UK IDA ✗ (not executed)", cite:"transfer.mechanism.v2"},
+    {label:"Rule outcome", detail:"UK/EU corridor → TIA mandatory (rule T-02)", cite:"transfer.rule.T-02"},
+    {label:"ALT · no UK/EU transfer", detail:"→ bypass TIA entirely; proceed to sharing analysis", alt:true}
   ],
-  artifacts:[{icon:"🔗", title:"Sharing matrix", status:"1 FLAG", lines:["In: HRIS → portal (internal, RBAC)","Out: portal → Northgate (processor · DPA+SCC)","Out: Northgate → insurers — ⚠ own case required"]}],
-  people:[{name:"System", role:"Automated sharing analysis", action:"mapped data flows"}],
-  systems:[{name:"Sharing Rules Engine", action:"evaluate(2 flows)", status:"OK"}]
+  artifacts:[{icon:"🌍", title:"Transfer analysis memo", status:"TIA REQUIRED", lines:["Route: UK→US (Northgate, us-east-1)","Mechanisms: DPA ✓ · EEA SCCs ✓ · UK IDA pending","Gap: UK International Data Addendum not executed","Decision: TIA required per rule T-02"]}],
+  people:[{name:"DataClear", role:"AI agent", action:"detected corridor, ruled TIA mandatory"}],
+  systems:[{name:"Transfer Rules Engine", action:"evaluate(corridor UK→US)", status:"OK"}]
 },
-{
-  id:"controls", n:11, title:"Controls recommendation",
-  chips:["Accept controls"],
-  expected:["accept","controls","yes","ok","continue"],
+tia: {
+  title:"TIA preparation", actor:"AI agent",
+  chips:[{text:"Accept TIA pack", goto:"sharing"}],
+  expected:["accept","tia","pack","yes","ok"],
   chat:[
-    {who:"bot", text:"Based on everything upstream — risk, DPIA, TIA, sharing — here is the control set. Each control cites the finding that requires it."},
-    {who:"bot", text:"6 controls recommended. Four can be applied automatically; two need human attestation first."}
+    {who:"bot", text:"Preparing the transfer impact assessment — destination-law review, vendor access model, supplementary measures. The inherited EEA→US TIA from the matched case gives a validated baseline; adapting for UK addendum context."},
+    {who:"bot", text:"TIA complete: encryption at rest, pseudonymised IDs, access logging, government-request notification procedure. Output pack assembled and attached to the case."}
   ],
   trace:[
-    {label:"Control mapping", detail:"6 controls mapped from 9 findings", cite:"control.mapper.v2"},
-    {label:"Automatable", detail:"4 of 6 (config-as-code available)", cite:"control.catalog.11/19/24/31"},
-    {label:"Human-required", detail:"2 of 6 (organisational: training, vendor SCC execution)", cite:"control.catalog.44/45"}
+    {label:"Baseline", detail:"adapted from inherited EEA→US TIA (UC-2025-0061)", cite:"tia.baseline.v1"},
+    {label:"Destination law review", detail:"US CLOUD Act · FISA 702 considered", cite:"tia.destination.v1"},
+    {label:"Supplementary measures", detail:"AES-256 at rest · pseudonymised IDs · access logging · gov-request procedure", cite:"tia.measures.v1"},
+    {label:"Output pack", detail:"TIA pack assembled: treatment plan + residual-risk template", cite:"tia.output.v1"}
   ],
-  artifacts:[{icon:"🛡️", title:"Control set UC-2026-0148", status:"6 CONTROLS", lines:["C-11 pseudonymised employee IDs (auto)","C-19 field-level RBAC: health data (auto)","C-24 retention 24m post-employment (auto)","C-31 encryption at rest AES-256 (auto)","C-44 vendor privacy training (attest)","C-45 execute SCCs with Northgate (attest)"]}],
-  people:[{name:"System", role:"Automated control mapper", action:"generated control set"}],
-  systems:[{name:"Control Catalog", action:"match(findings)", status:"OK"}]
+  artifacts:[{icon:"📘", title:"TIA UK→US (Northgate)", status:"COMPLETE", lines:["Corridor: UK→US (us-east-1)","Destination-law risk: medium — CLOUD Act/FISA 702 considered","Supplementary measures: AES-256 · pseudonymised IDs · access logging · notification procedure","Baseline: adapted from matched-case EEA TIA","Pack: treatment plan + residual-risk template attached"]}],
+  people:[{name:"DataClear", role:"AI agent", action:"prepared TIA on inherited baseline"}],
+  systems:[
+    {name:"Transfer Engine", action:"compile(tia.template.v3)", status:"OK"},
+    {name:"Schemas Engine", action:"attach pack → case", status:"OK"}
+  ]
 },
-{
-  id:"attest", n:12, title:"User control attestation",
-  chips:["I attest"],
-  expected:["attest","i attest","agree","yes","confirm"],
+sharing: {
+  title:"Data sharing rules", actor:"AI agent",
+  chips:[{text:"Accept sharing map", goto:"controls"}],
+  expected:["accept","sharing","map","yes","ok","continue"],
   chat:[
-    {who:"bot", text:"Two controls need a human on record: C-44 (vendor training) and C-45 (SCC execution with Northgate). Attesting means you accept ownership and the audit log captures it."},
-    {who:"bot", text:"Your attestation is a logged decision with your name and timestamp — it's evidence, not a formality."}
+    {who:"bot", text:"Mapping every data flow this use case creates — internal, outbound to processor, and onward sharing."},
+    {who:"bot", text:"Three flows found. Two are covered (internal RBAC; Northgate as processor under DPA + IDA once executed). The third — Northgate onward to insurers — is controller-to-controller: outside this case's authority, flagged for its own submission. I don't approve silently what I haven't evaluated."}
   ],
   trace:[
-    {label:"Attestation request", detail:"C-44, C-45 → requester Priya Sharma", cite:"attest.policy.v1"},
-    {label:"Identity anchor", detail:"SSO: p.sharma@dcba (MFA ✓)", cite:"authn.sso"},
-    {label:"Attestation recorded", detail:"C-44, C-45 attested 09-24T14:12Z", cite:"attest.record"}
+    {label:"Flow 1 · HRIS → portal", detail:"internal · RBAC-protected", cite:"share.rule.S-01"},
+    {label:"Flow 2 · portal → Northgate", detail:"processor relationship · DPA + UK IDA (pending execution)", cite:"share.rule.S-02"},
+    {label:"Flow 3 · Northgate → insurers", detail:"independent controllers → separate basis + own submission required", cite:"share.rule.S-03"},
+    {label:"Boundary", detail:"Flow 3 NOT approved here — flagged for separate intake", cite:"share.rule.no-silent-approval"}
   ],
-  artifacts:[{icon:"✍️", title:"Attestation record AT-0334", status:"SIGNED", lines:["Attested by: Priya Sharma (SSO MFA)","Controls: C-44 vendor training · C-45 SCC execution","Timestamp: 2026-09-24T14:12:07Z","Stored: immutable case file"]}],
-  people:[{name:"Priya Sharma", role:"Business requester", action:"attested C-44 + C-45 ✓"}],
-  systems:[{name:"Attestation Service", action:"record(AT-0334)", status:"OK"}]
+  artifacts:[{icon:"🔗", title:"Sharing matrix UC-2026-0155", status:"1 FLAG", lines:["In: HRIS → portal (internal, RBAC)","Out: portal → Northgate (processor · DPA + UK IDA)","Out: Northgate → insurers — ⚠ controller-to-controller · own submission required","Not approved in this case: onward sharing"]}],
+  people:[{name:"DataClear", role:"AI agent", action:"mapped 3 flows, flagged 1"}],
+  systems:[{name:"Sharing Rules Engine", action:"evaluate(3 flows)", status:"OK"}]
 },
-{
-  id:"apply", n:13, title:"Automated controls",
-  chips:["Continue"],
-  expected:["continue","next","ok","apply","yes"],
+controls: {
+  title:"Controls recommendation", actor:"AI agent",
+  chips:[{text:"Review control set", goto:"attest"}],
+  expected:["review","control","set","yes","ok","continue"],
   chat:[
-    {who:"bot", text:"Applying the four automatable controls now — config-as-code, no tickets, no drift. You can watch each one land in the Systems tab."},
-    {who:"bot", text:"All four applied and verified. The two attested controls are tracked as obligations with owners and due dates."}
+    {who:"bot", text:"Everything upstream — risk, DPIA, TIA, sharing — now condenses into one control set. Each control cites the finding that requires it: no orphans."},
+    {who:"bot", text:"Six controls recommended. Four are automatable (I'll apply them directly at the apply step). Two are manual and need your attestation first: vendor privacy training (C-44) and executing the UK IDA with Northgate (C-45)."}
   ],
   trace:[
-    {label:"C-11 applied", detail:"pseudonymisation on employee_id pipe", cite:"control.11.exec"},
-    {label:"C-19 applied", detail:"RBAC policy: health fields → Benefits role only", cite:"control.19.exec"},
-    {label:"C-24 applied", detail:"retention 24m post-employment job created", cite:"control.24.exec"},
+    {label:"Control mapping", detail:"6 controls mapped from 9 findings · each control cites its finding", cite:"control.mapper.v2"},
+    {label:"Automatable", detail:"C-11 pseudonymisation · C-19 RBAC · C-24 retention · C-31 encryption", cite:"control.catalog.auto"},
+    {label:"Manual (attest)", detail:"C-44 vendor training · C-45 UK IDA execution with Northgate", cite:"control.catalog.manual"},
+    {label:"Inherited", detail:"DPO condition folded in: dependents retention ≤ 24m (C-24 param)", cite:"control.catalog.inherited"}
+  ],
+  artifacts:[{icon:"🛡️", title:"Control set UC-2026-0155", status:"6 CONTROLS", lines:["C-11 pseudonymised employee IDs (auto)","C-19 field-level RBAC: health data (auto)","C-24 retention 24m post-employment, dependents ≤24m per DPO (auto)","C-31 encryption at rest AES-256 (auto)","C-44 vendor privacy training (manual · attest)","C-45 execute UK IDA with Northgate (manual · attest)"]}],
+  people:[{name:"DataClear", role:"AI agent", action:"generated control set from findings"}],
+  systems:[{name:"Control Catalog", action:"match(9 findings)", status:"OK"}]
+},
+attest: {
+  title:"User control attestation", actor:"Requester",
+  chips:[{text:"I attest to C-44 and C-45", goto:"apply"}],
+  expected:["attest","i attest","agree","yes","confirm","c-44"],
+  chat:[
+    {who:"bot", text:"Two controls need a human on record before I can apply anything: C-44 (vendor privacy training) and C-45 (executing the UK IDA with Northgate). Attesting means you own the obligation and its deadline — it's logged evidence, not a checkbox."},
+    {who:"bot", text:"Attested ✓ — recorded against your SSO identity (MFA verified). Both obligations now have owners and due dates. (Incomplete attestation would block the case here — supported, not shown.)"}
+  ],
+  trace:[
+    {label:"Attestation request", detail:"C-44 · C-45 → Priya (requester)", cite:"attest.policy.v2"},
+    {label:"Identity anchor", detail:"SSO: priya@dcba · MFA ✓", cite:"authn.sso.v1"},
+    {label:"Gate evaluation", detail:"all required conditions attested → PASS", cite:"attest.gate.v1"},
+    {label:"ALT · incomplete attestation", detail:"→ case blocked at this gate, returned to requester with gaps listed", alt:true}
+  ],
+  artifacts:[{icon:"✍️", title:"Attestation record AT-0512", status:"SIGNED", lines:["Attested by: Priya (SSO, MFA ✓)","Controls: C-44 vendor training · C-45 UK IDA execution","Timestamp: 2026-09-26T11:05Z","Obligations due: C-44 +30d · C-45 +60d","Stored: immutable case file"]}],
+  people:[{name:"Priya", role:"Requester · HR Ops", action:"attested C-44 + C-45 ✓"}],
+  systems:[{name:"Attestation Service", action:"record(AT-0512)", status:"OK"}]
+},
+apply: {
+  title:"Automated controls application", actor:"System",
+  chips:[{text:"Run automated controls", goto:"log"}],
+  expected:["run","apply","controls","yes","ok","continue"],
+  chat:[
+    {who:"bot", text:"Attestation complete — applying the four automatable controls now. Config-as-code straight to the target systems: no tickets, no drift. Watch the Systems tab."},
+    {who:"bot", text:"All four applied and verified by post-config probe. The two attested obligations remain tracked with owners and due dates. Case is ready to close."}
+  ],
+  trace:[
+    {label:"C-11 applied", detail:"pseudonymisation on employee_id (UK portal pipe)", cite:"control.11.exec"},
+    {label:"C-19 applied", detail:"RBAC: health fields → Benefits admin role only", cite:"control.19.exec"},
+    {label:"C-24 applied", detail:"retention 24m post-employment · dependents ≤24m (DPO condition)", cite:"control.24.exec"},
     {label:"C-31 applied", detail:"AES-256 at rest on portal storage", cite:"control.31.exec"},
-    {label:"Verification", detail:"4/4 verified by post-config probe", cite:"control.verify.v1"}
+    {label:"Verification", detail:"4/4 verified by post-config probe", cite:"control.verify.v2"}
   ],
-  artifacts:[{icon:"⚙️", title:"Control application log", status:"4/4 APPLIED", lines:["C-11 pseudonymisation ✓ verified","C-19 RBAC health fields ✓ verified","C-24 retention job ✓ verified","C-31 encryption at rest ✓ verified","Obligations open: C-44 (Priya), C-45 (Legal)"]}],
-  people:[{name:"System", role:"Automation runtime", action:"applied 4 controls"}],
+  artifacts:[{icon:"⚙️", title:"Control application log", status:"4/4 APPLIED", lines:["C-11 pseudonymised employee IDs ✓ verified","C-19 RBAC health fields ✓ verified","C-24 retention 24m ✓ verified","C-31 AES-256 at rest ✓ verified","Obligations open: C-44 (Priya, +30d) · C-45 (Legal, +60d)"]}],
+  people:[{name:"DataClear", role:"AI agent", action:"applied 4 controls automatically"}],
   systems:[
     {name:"Portal Config API", action:"PATCH /privacy/pseudonymise", status:"✓ APPLIED"},
     {name:"IAM Service", action:"PUT /rbac/health-fields", status:"✓ APPLIED"},
@@ -243,21 +267,29 @@ const STAGES = [
     {name:"Storage Service", action:"POST /encrypt/aes256", status:"✓ APPLIED"}
   ]
 },
-{
-  id:"log", n:14, title:"Record logging",
-  chips:["Restart demo"],
-  expected:["restart","again","replay","done","log"],
+log: {
+  title:"Record logging", actor:"System",
+  chips:[{text:"Replay demo", goto:"__restart"}],
+  expected:["replay","restart","again","done","log"],
   chat:[
-    {who:"bot", text:"Case closed. The full journey — intake to controls — is sealed into the immutable audit log. Hash-chained, append-only: every verdict, every citation, every human action is reconstructable."},
-    {who:"bot", text:"UC-2026-0148 · outcome: PROCEED WITH CONTROLS · 14 stages · 23 rule citations · 2 human attestations · 1 DPO validation. Ask me for the log any time — it's the point of all this."}
+    {who:"bot", text:"Case UC-2026-0155 sealed. The entire journey — intake through controls — is written to the immutable audit chain: every verdict, every rule citation, every human action, reconstructable end to end."},
+    {who:"bot", text:"14 events · 27 rule citations · 1 DPO approval · 2 attestations · 4 automated controls · 1 inherited 82% match. Output pack delivered to the requester. This log is the point of the whole system."}
   ],
   trace:[
-    {label:"Case seal", detail:"UC-2026-0148 → audit chain", cite:"log.seal.v1"},
-    {label:"Chain hash", detail:"0x7f3a…c91d (links prior block)", cite:"log.hashchain"},
-    {label:"Retention of record", detail:"case file kept 6 years", cite:"policy.record-retention"}
+    {label:"Case seal", detail:"UC-2026-0155 → audit chain", cite:"log.seal.v2"},
+    {label:"Chain hash", detail:"0x9dc1…c68a (links block #48,113)", cite:"log.hashchain"},
+    {label:"Output pack", detail:"aggregated record: source submission · decisions · recommendations · controls · artifacts", cite:"case.output.v1"},
+    {label:"Record retention", detail:"case file retained 6 years", cite:"policy.record-retention"}
   ],
-  artifacts:[{icon:"🔒", title:"Audit record UC-2026-0148", status:"SEALED", lines:["Stages: 14/14 linear · verdicts: 11 · citations: 23","Humans: 2 attestations · 1 DPO validation","Automated: 4 controls applied, 3 golden sources, 2,317 cases scanned","Hash: 0x7f3a…c91d · append-only"]}],
-  people:[{name:"System", role:"Audit logger", action:"sealed case record"}],
-  systems:[{name:"Audit Chain", action:"append(block 48,113)", status:"✓ SEALED"}]
+  artifacts:[
+    {icon:"🔒", title:"Audit record UC-2026-0155", status:"SEALED", lines:["Events: 14/14 · rule citations: 27","Humans: 1 DPO approval · 1 attestation (2 controls)","Automated: 4 controls applied · 2,891 cases scanned · 3 golden sources","Matched: 82% link to UC-2025-0061","Hash: 0x9dc1…c68a · append-only"]},
+    {icon:"📦", title:"Final output pack (aggregated record)", status:"DELIVERED", lines:["Source submission: UC-2026-0155 intake","Decisions: risk 16/25 HIGH · DPIA approved (1 condition) · TIA complete · sharing 1 flag","Controls: 6 (4 auto-applied · 2 attested with due dates)","Artifacts: DPIA · TIA pack · sharing matrix · notice validation · match report","Linked case: UC-2025-0061 (82% inheritance)"]}
+  ],
+  people:[{name:"DataClear", role:"System", action:"sealed case record, delivered output pack"}],
+  systems:[
+    {name:"Audit Chain", action:"append(block 48,114)", status:"✓ SEALED"},
+    {name:"Case Store", action:"PUT /cases/2026-0155/final", status:"✓ RECORDED"}
+  ]
 }
-];
+  }
+};
