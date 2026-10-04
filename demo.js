@@ -1,4 +1,4 @@
-/* DataClear demo engine v0.3 — graph walker + dynamic stepper.
+/* DataClear demo engine v0.4 — graph walker + dynamic stepper.
    Walks FLOW.nodes via chip goto. Stepper: pinned START/FINISH caps,
    intermediate pills fill in as visited. Alt trace rows render muted. */
 (function () {
@@ -171,7 +171,7 @@ function enterNode(id, instant){
 }
 function pick(chip){
   if(state.busy) return;
-  addBubble({who:"user", name:"Priya (Requester)", text: chip.text});
+  addBubble({who:"user", name: (FLOW.meta && FLOW.meta.requester) || "Requester", text: chip.text});
   CHIPS.classList.remove("show");
   if(chip.goto === "__restart"){ later(restart, 800); return; }
   state.busy = true;
