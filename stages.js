@@ -5,7 +5,11 @@ const FLOW = {
   meta: {
     caseId: "UC26",
     requester: "John Smith (Requester · Head of AI, Legal COO)",
-    caseName: "Legal AI productivity tool — International Company ABC (UK launch)"
+    caseName: "Legal AI productivity tool — International Company ABC (UK launch)",
+    labels: {intake:"Intake", enrich:"Enrich", match:"Match", notice:"Notice", risk:"Risk",
+             dpia:"DPIA", dpo:"DPO", transfer:"Transfer", tia:"TIA", sharing:"Sharing",
+             controls:"Controls", attest:"Attest", apply:"Apply", log:"Log"},
+    knownAfter: {dpia:"risk", dpo:"risk", tia:"transfer"}
   },
   path: ["intake","enrich","match","notice","risk","dpia","dpo","transfer","tia","sharing","controls","attest","apply","log"],
   nodes: {

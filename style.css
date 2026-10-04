@@ -51,11 +51,12 @@ body {
   background:var(--panel); border-bottom:1px solid var(--line); padding:7px 18px;
 }
 .step {
-  flex:none; width:26px; height:26px; border-radius:50%;
-  font-family:var(--mono); font-size:10.5px; font-weight:600;
+  flex:none; height:22px; border-radius:999px;
+  font-family:var(--mono); font-size:10px; font-weight:600; white-space:nowrap;
   color:var(--faint); background:var(--hairline); border:1px solid var(--line);
-  cursor:pointer; transition:all .2s; padding:0;
+  cursor:pointer; transition:all .2s; padding:0 10px;
 }
+.step.blank { min-width:22px; padding:0 6px; opacity:.4; background:transparent; border-style:dashed; }
 .step:hover { border-color:var(--blue-text); color:var(--blue-text); }
 .step.done { background:var(--green-wash); color:var(--green); border-color:#CDEBD8; }
 .step.active { background:var(--bar); color:var(--blue-light); border-color:var(--bar); box-shadow:0 0 0 3px var(--blue-wash); }
@@ -184,13 +185,13 @@ body {
   .pane.chat-pane { min-height:70vh; }
 }
 
-/* ════════════ v0.3 additions: dynamic stepper + alt rows ════════════ */
+/* ════════════ v0.4/v0.5 additions: dynamic stepper + alt rows ════════════ */
 .step-cap {
   flex:none; font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:1px;
   color:var(--bar-clock); background:var(--bar); border-radius:999px; padding:3px 10px;
 }
 .step-cap.finish { color:var(--blue-light); }
-.step.unfilled { opacity:.45; background:transparent; border-style:dashed; color:var(--faint); }
+.step.known { opacity:.6; background:transparent; border-style:dashed; color:var(--faint); }
 .step.done { animation:fillin .35s ease; }
 @keyframes fillin { from { transform:scale(.7); opacity:.2; } to { transform:scale(1); opacity:1; } }
 .tabitem.altrow { border-style:dashed; background:transparent; opacity:.75; }

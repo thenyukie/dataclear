@@ -1,4 +1,4 @@
-/* DataClear demo engine v0.4 — graph walker + dynamic stepper.
+/* DataClear demo engine v0.5 — graph walker + dynamic stepper.
    Walks FLOW.nodes via chip goto. Stepper: pinned START/FINISH caps,
    intermediate pills fill in as visited. Alt trace rows render muted. */
 (function () {
@@ -22,36 +22,37 @@ function initials(n){ return n.split(/\s+/).map(w=>w[0]).join("").replace(/[^A-Z
 function scrollChat(){ CHAT.scrollTop = CHAT.scrollHeight; }
 
 /* ── dynamic stepper: START cap · pills fill as visited · FINISH cap ── */
+const LABELS = (FLOW.meta && FLOW.meta.labels) || {};
+const KNOWN_AFTER = (FLOW.meta && FLOW.meta.knownAfter) || {};
 function renderStepper(){
   const wrap = document.getElementById("stepper"); wrap.innerHTML = "";
-  const caps = [["START","cap start"],["FINISH","cap finish"]];
-  // START cap
-  const s=document.createElement("span"); s.className="step-cap start"; s.textContent="START"; wrap.appendChild(s);
-  // intermediate slots (as many as PATH nodes, all unfilled initially)
   PATH.forEach((id,i)=>{
     if(i){ const c=document.createElement("span"); c.className="step-link"; wrap.appendChild(c); }
     const p=document.createElement("button");
-    p.className="step unfilled"; p.type="button"; p.dataset.node=id;
+    p.className="step blank"; p.type="button"; p.dataset.node=id;
     p.setAttribute("aria-label", NODES[id].title);
     wrap.appendChild(p);
   });
-  // FINISH cap
-  const f=document.createElement("span"); f.className="step-cap finish"; f.textContent="FINISH"; wrap.appendChild(f);
 }
 function paintStepper(){
-  const idx = PATH.indexOf(state.cur);
   document.querySelectorAll("#stepper .step").forEach((p)=>{
     const nid = p.dataset.node;
     const vi = state.visited.indexOf(nid);
     const n = NODES[nid];
-    p.classList.remove("unfilled","done","active");
+    const known = vi !== -1 || !KNOWN_AFTER[nid] || state.visited.indexOf(KNOWN_AFTER[nid]) !== -1;
+    p.classList.remove("blank","known","done","active");
     if(vi !== -1){
       p.classList.add(vi === state.visited.length-1 && nid === state.cur ? "active" : "done");
-      p.textContent = PATH.indexOf(nid)+1;
-      p.title = n.title;
+      p.textContent = LABELS[nid] || n.title;
+      p.title = (PATH.indexOf(nid)+1) + " · " + n.title;
+    } else if(known){
+      p.classList.add("known");
+      p.textContent = LABELS[nid] || n.title;
+      p.title = "Known ahead · " + n.title;
     } else {
-      p.textContent = "?";
-      p.title = "Not yet reached";
+      p.classList.add("blank");
+      p.textContent = "";
+      p.title = "Not yet determined";
     }
   });
   // status pill
