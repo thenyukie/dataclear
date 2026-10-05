@@ -1,11 +1,11 @@
-/* DataClear demo engine v0.5 — graph walker + dynamic stepper.
+/* DataClear demo engine v0.6 — graph walker + dynamic stepper.
    Walks FLOW.nodes via chip goto. Stepper: pinned START/FINISH caps,
    intermediate pills fill in as visited. Alt trace rows render muted. */
 (function () {
 "use strict";
 const PATH = FLOW.path;
 const NODES = FLOW.nodes;
-const state = { cur: null, visited: [], revealed: 0, timers: [], busy: false };
+const state = { cur: null, visited: [], revealed: 0, timers: [], busy: false, manualTab: false };
 const CHAT = document.getElementById("chat");
 const TYPING = document.getElementById("typing");
 const CHIPS = document.getElementById("chips");
@@ -114,11 +114,19 @@ function revealItem(kind, delay){
     if(li){ li.style.display=""; li.classList.add("pop"); }
   }, delay);
 }
+function activateTab(kind){
+  document.querySelectorAll(".tabbtn").forEach(x=>x.classList.toggle("active", x.dataset.tab===kind));
+  document.querySelectorAll(".tabpanel").forEach(x=>x.classList.toggle("active", x.id==="tab-"+kind));
+}
 function revealAllTabs(startDelay){
   let d = startDelay;
+  const starts = [];
   ["trace","artifacts","people","systems"].forEach(kind=>{
+    if (TABS[kind].length) starts.push([kind, d]);
     TABS[kind].forEach(()=>{ revealItem(kind, d); d += 160; });
   });
+  // auto-cycle: switch to each tab as its rows start revealing (paused if user clicked a tab)
+  starts.forEach(([kind, at])=> later(()=>{ if(!state.manualTab) activateTab(kind); }, at));
   return d;
 }
 
@@ -150,7 +158,7 @@ function revealNext(){
 }
 function enterNode(id, instant){
   clearTimers();
-  state.cur = id; state.revealed = 0; state.busy = true;
+  state.cur = id; state.revealed = 0; state.busy = true; state.manualTab = false;
   CHIPS.classList.remove("show"); CHIPS.innerHTML="";
   const n = NODES[id];
   if(state.visited[state.visited.length-1] !== id) state.visited.push(id);
@@ -159,6 +167,7 @@ function enterNode(id, instant){
   document.getElementById("stage-title").textContent = (PATH.indexOf(id)+1) + " · " + n.title + " — " + n.actor;
   addDivider("— Step " + (PATH.indexOf(id)+1) + " · " + n.title + " · " + n.actor + " —");
   if(instant){
+    activateTab("trace");
     n.chat.forEach(addBubble);
     state.revealed = n.chat.length;
     ["trace","artifacts","people","systems"].forEach(k=>{
@@ -167,6 +176,7 @@ function enterNode(id, instant){
     });
     showChips(); state.busy=false;
   } else {
+    activateTab("trace");
     later(revealNext, 450);
   }
 }
@@ -203,10 +213,8 @@ function restart(){
 /* ── wiring ── */
 document.querySelectorAll(".tabbtn").forEach(b=>{
   b.addEventListener("click", ()=>{
-    document.querySelectorAll(".tabbtn").forEach(x=>x.classList.remove("active"));
-    document.querySelectorAll(".tabpanel").forEach(x=>x.classList.remove("active"));
-    b.classList.add("active");
-    document.getElementById("tab-"+b.dataset.tab).classList.add("active");
+    state.manualTab = true;   // user override: pause auto-cycling for this stage
+    activateTab(b.dataset.tab);
   });
 });
 SEND.addEventListener("click", submitTyped);
