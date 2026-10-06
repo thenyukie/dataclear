@@ -111,7 +111,7 @@ function fillTab(kind, items){
 function revealItem(kind, delay){
   later(()=>{
     const li = TABS[kind].shift();
-    if(li){ li.style.display=""; li.classList.add("pop"); }
+    if(li){ li.style.display="block"; li.classList.add("pop"); }
   }, delay);
 }
 function activateTab(kind){
